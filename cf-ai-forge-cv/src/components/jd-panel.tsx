@@ -22,6 +22,7 @@ export function JdPanel() {
     status,
     setStatus,
     addChatMessage,
+    getMaster,
   } = useResumeStore()
   const [isOpen, setIsOpen] = useState(true)
 
@@ -34,15 +35,20 @@ export function JdPanel() {
     )
 
     try {
+      const masterProfile = getMaster()
       const res = await fetch("/api/tailor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, jobDescription }),
+        body: JSON.stringify({ resume, jobDescription, masterProfile }),
       })
 
       if (!res.ok) throw new Error(await res.text())
 
-      const { tailored, highlights, reasoning } = await res.json()
+      const { tailored, highlights, reasoning } = await res.json() as {
+        tailored: import("@/lib/resume-types").ResumeData
+        highlights: import("@/lib/resume-types").HighlightedField[]
+        reasoning: { section: string; change: string; why: string }[]
+      }
 
       setResume(tailored)
       setHighlights(highlights)

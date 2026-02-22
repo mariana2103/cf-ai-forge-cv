@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { ResumeData } from "@/lib/resume-types";
 
-export const runtime = "edge";
 
 const SYSTEM_PROMPT = `You are an expert resume parser. Convert the raw resume text below into a structured JSON object.
 
@@ -46,7 +45,7 @@ Rules:
 - bullets should be an array of strings, one per bullet point.`;
 
 export async function POST(request: NextRequest) {
-  const { env } = await getCloudflareContext();
+  const { env } = getCloudflareContext();
 
   const { text } = (await request.json()) as { text: string };
 
@@ -54,7 +53,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
 
-  const response = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+  // Use the 3B model for extraction — sufficient for JSON structuring, much faster than 70B
+  const response = await env.AI.run("@cf/meta/llama-3.2-3b-instruct", {
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: text },

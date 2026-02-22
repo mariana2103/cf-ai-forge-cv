@@ -1,12 +1,47 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { Upload, Type, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useResumeStore } from "@/lib/resume-store"
+import type { ResumeData } from "@/lib/resume-types"
+
+/** Extract plain text from a PDF file using pdfjs running in the browser. */
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist")
+  // Serve the worker locally from /public — avoids CDN latency on first load
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const pages: string[] = []
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    const pageText = content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .join(" ")
+    pages.push(pageText)
+  }
+
+  return pages.join("\n\n")
+}
+
+/** Parse extracted text into a structured ResumeData via Workers AI. */
+async function parseResumeText(text: string): Promise<ResumeData> {
+  const res = await fetch("/api/parse", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  const { resume } = (await res.json()) as { resume: ResumeData }
+  return resume
+}
 
 export function CommandDropzone() {
   const { status, setResume, setStatus, addChatMessage, loadSample } =
@@ -14,46 +49,56 @@ export function CommandDropzone() {
   const [mode, setMode] = useState<"drop" | "text">("drop")
   const [textInput, setTextInput] = useState("")
   const [isParsing, setIsParsing] = useState(false)
+  const [parseStep, setParseStep] = useState("")
+
+  // Preload pdfjs into the module cache so the first drop feels instant
+  useEffect(() => {
+    import("pdfjs-dist").catch(() => {})
+  }, [])
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       if (acceptedFiles.length === 0) return
       const file = acceptedFiles[0]
       setIsParsing(true)
-      addChatMessage("assistant", `Uploading and parsing "${file.name}"...`)
 
       try {
+        // Step 1 — extract text in the browser
+        setParseStep("Extracting text...")
+        addChatMessage("assistant", `Reading "${file.name}"...`)
+
+        let rawText: string
+        if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+          rawText = await extractPdfText(file)
+        } else {
+          rawText = await file.text()
+        }
+
+        // Step 2 — upload raw file to R2 (fire-and-forget, non-blocking)
         const formData = new FormData()
         formData.append("resume", file)
+        fetch("/api/upload", { method: "POST", body: formData }).catch(
+          console.error
+        )
 
-        const res = await fetch("/api/upload", { method: "POST", body: formData })
-        if (!res.ok) throw new Error(await res.text())
-        const { sections } = await res.json()
+        // Step 3 — structure with AI
+        setParseStep("AI is structuring your resume...")
+        addChatMessage("assistant", "Sending to Llama 3.3 on Cloudflare Workers AI to structure your resume...")
 
-        // Turn the parsed sections into flat text, then let the AI structure it
-        const rawText = Object.entries(sections as Record<string, string[]>)
-          .map(([heading, lines]) => `${heading.toUpperCase()}\n${lines.join("\n")}`)
-          .join("\n\n")
+        const resume = await parseResumeText(rawText)
 
-        const parseRes = await fetch("/api/parse", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: rawText }),
-        })
-        if (!parseRes.ok) throw new Error(await parseRes.text())
-        const { resume } = await parseRes.json()
-
-        setResume(resume)
+        setResume(resume, true)
         setStatus("loaded")
         addChatMessage(
           "assistant",
-          "Resume parsed and loaded. You can edit any field directly, or paste a Job Description to start tailoring."
+          `Done! Resume loaded for **${resume.contact.name || "you"}**. Every field is inline-editable. Paste a Job Description below to start tailoring.`
         )
       } catch (err) {
-        addChatMessage("assistant", `Error parsing resume: ${(err as Error).message}`)
+        addChatMessage("assistant", `Error: ${(err as Error).message}`)
         setStatus("empty")
       } finally {
         setIsParsing(false)
+        setParseStep("")
       }
     },
     [addChatMessage, setResume, setStatus]
@@ -72,29 +117,24 @@ export function CommandDropzone() {
   const handleTextSubmit = async () => {
     if (!textInput.trim()) return
     setIsParsing(true)
-    addChatMessage("assistant", "Parsing your resume text with AI...")
+    setParseStep("AI is structuring your resume...")
+    addChatMessage("assistant", "Parsing your resume with Llama 3.3...")
 
     try {
-      const res = await fetch("/api/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: textInput }),
-      })
-      if (!res.ok) throw new Error(await res.text())
-      const { resume } = await res.json()
-
-      setResume(resume)
+      const resume = await parseResumeText(textInput)
+      setResume(resume, true)
       setStatus("loaded")
       setTextInput("")
       setMode("drop")
       addChatMessage(
         "assistant",
-        "Text parsed and loaded. All fields are editable. Try pasting a Job Description next."
+        `Loaded! Every field is editable. Paste a Job Description below to start tailoring.`
       )
     } catch (err) {
-      addChatMessage("assistant", `Error parsing text: ${(err as Error).message}`)
+      addChatMessage("assistant", `Error: ${(err as Error).message}`)
     } finally {
       setIsParsing(false)
+      setParseStep("")
     }
   }
 
@@ -139,7 +179,7 @@ export function CommandDropzone() {
             "flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-8 text-center transition-all cursor-pointer",
             isDragActive
               ? "border-primary bg-primary/5"
-              : "border-border hover:border-muted-foreground/40 hover:bg-secondary/30",
+              : "border-border hover:border-primary/40 hover:bg-secondary/30",
             isParsing && "pointer-events-none opacity-60"
           )}
         >
@@ -152,7 +192,7 @@ export function CommandDropzone() {
           <div className="flex flex-col gap-0.5">
             <p className="text-xs font-medium text-foreground">
               {isParsing
-                ? "Parsing with AI..."
+                ? parseStep
                 : isDragActive
                   ? "Drop here"
                   : "Drop PDF or TXT"}

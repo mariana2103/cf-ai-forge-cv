@@ -18,12 +18,20 @@ import {
   createSampleResume,
   generateId,
 } from "./resume-types"
+import { DEFAULT_TEMPLATE_ID } from "./templates"
+import {
+  getMasterProfile,
+  saveMasterProfile,
+  mergeIntoMaster,
+  clearMasterProfile,
+} from "./master-profile"
 
 const RESUME_KEY = "forge-resume"
 const CHAT_KEY = "forge-chat"
 const JD_KEY = "forge-jd"
 const HIGHLIGHTS_KEY = "forge-highlights"
 const STATUS_KEY = "forge-status"
+const TEMPLATE_KEY = "forge-template"
 
 type WorkspaceStatus = "empty" | "loaded" | "tailoring" | "tailored"
 
@@ -33,7 +41,8 @@ interface ResumeStoreContextValue {
   jobDescription: string
   highlights: HighlightedField[]
   status: WorkspaceStatus
-  setResume: (data: ResumeData) => void
+  templateId: string
+  setResume: (data: ResumeData, saveToMaster?: boolean) => void
   updateField: (path: string, value: string) => void
   addExperienceBullet: (expId: string) => void
   removeExperienceBullet: (expId: string, bulletIndex: number) => void
@@ -48,6 +57,8 @@ interface ResumeStoreContextValue {
   setHighlights: (h: HighlightedField[]) => void
   clearHighlights: () => void
   setStatus: (s: WorkspaceStatus) => void
+  setTemplateId: (id: string) => void
+  getMaster: () => ResumeData | null
   loadSample: () => void
   resetAll: () => void
 }
@@ -72,10 +83,23 @@ export function ResumeStoreProvider({ children }: { children: ReactNode }) {
   const { data: status } = useSWR<WorkspaceStatus>(STATUS_KEY, null, {
     fallbackData: "empty",
   })
+  const { data: templateId } = useSWR<string>(TEMPLATE_KEY, null, {
+    fallbackData: DEFAULT_TEMPLATE_ID,
+  })
 
-  const setResume = useCallback((data: ResumeData) => {
+  const setResume = useCallback((data: ResumeData, saveToMaster = false) => {
     globalMutate(RESUME_KEY, data, false)
+    if (saveToMaster) {
+      const master = getMasterProfile()
+      saveMasterProfile(mergeIntoMaster(master, data))
+    }
   }, [])
+
+  const setTemplateId = useCallback((id: string) => {
+    globalMutate(TEMPLATE_KEY, id, false)
+  }, [])
+
+  const getMaster = useCallback(() => getMasterProfile(), [])
 
   const updateField = useCallback(
     (path: string, value: string) => {
@@ -260,6 +284,7 @@ export function ResumeStoreProvider({ children }: { children: ReactNode }) {
     globalMutate(JD_KEY, "", false)
     globalMutate(HIGHLIGHTS_KEY, [], false)
     globalMutate(STATUS_KEY, "empty" as WorkspaceStatus, false)
+    clearMasterProfile()
   }, [])
 
   const value = useMemo<ResumeStoreContextValue>(
@@ -269,6 +294,7 @@ export function ResumeStoreProvider({ children }: { children: ReactNode }) {
       jobDescription: jobDescription!,
       highlights: highlights!,
       status: status!,
+      templateId: templateId!,
       setResume,
       updateField,
       addExperienceBullet,
@@ -283,6 +309,8 @@ export function ResumeStoreProvider({ children }: { children: ReactNode }) {
       addChatMessage,
       setHighlights,
       clearHighlights,
+      setTemplateId,
+      getMaster,
       setStatus,
       loadSample,
       resetAll,
@@ -307,6 +335,8 @@ export function ResumeStoreProvider({ children }: { children: ReactNode }) {
       addChatMessage,
       setHighlights,
       clearHighlights,
+      setTemplateId,
+      getMaster,
       setStatus,
       loadSample,
       resetAll,

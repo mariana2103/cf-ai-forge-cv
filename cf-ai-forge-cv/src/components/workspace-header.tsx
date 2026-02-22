@@ -1,19 +1,31 @@
 "use client"
 
-import { Anvil, RotateCcw, Download } from "lucide-react"
+import { Eye, EyeOff, Anvil, RotateCcw, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { useResumeStore } from "@/lib/resume-store"
+import { RESUME_TEMPLATES, getTemplate } from "@/lib/templates"
+import type { ResumeTemplate } from "@/lib/templates"
+import { cn } from "@/lib/utils"
 
-export function WorkspaceHeader() {
-  const { status, resetAll, resume } = useResumeStore()
+interface WorkspaceHeaderProps {
+  previewMode: boolean
+  onTogglePreview: () => void
+}
+
+export function WorkspaceHeader({
+  previewMode,
+  onTogglePreview,
+}: WorkspaceHeaderProps) {
+  const { status, resetAll, resume, templateId, setTemplateId } =
+    useResumeStore()
 
   const handleExportPdf = () => {
     const printWindow = window.open("", "_blank")
     if (!printWindow) return
-
-    const html = buildPrintHtml(resume)
+    const template = getTemplate(templateId)
+    const html = buildPrintHtml(resume, template)
     printWindow.document.write(html)
     printWindow.document.close()
     printWindow.focus()
@@ -23,8 +35,9 @@ export function WorkspaceHeader() {
   }
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-border px-4">
-      <div className="flex items-center gap-3">
+    <header className="flex h-12 items-center justify-between border-b border-border px-4 gap-4">
+      {/* Left: logo + status */}
+      <div className="flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <Anvil className="size-5 text-primary" />
           <span className="text-sm font-semibold text-foreground tracking-tight">
@@ -46,7 +59,45 @@ export function WorkspaceHeader() {
           </Badge>
         )}
       </div>
-      <div className="flex items-center gap-1.5">
+
+      {/* Centre: template picker */}
+      <div className="flex items-center gap-1 overflow-x-auto">
+        {RESUME_TEMPLATES.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTemplateId(t.id)}
+            className={cn(
+              "rounded px-2.5 py-1 text-[10px] font-medium transition-colors whitespace-nowrap",
+              templateId === t.id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+            )}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Right: preview toggle + reset + export */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {status !== "empty" && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onTogglePreview}
+            className={cn(
+              "text-muted-foreground hover:text-foreground",
+              previewMode && "text-primary bg-primary/10"
+            )}
+            aria-label={previewMode ? "Exit preview" : "Preview resume"}
+          >
+            {previewMode ? (
+              <EyeOff className="size-3.5" />
+            ) : (
+              <Eye className="size-3.5" />
+            )}
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -72,16 +123,15 @@ export function WorkspaceHeader() {
 }
 
 function buildPrintHtml(
-  resume: import("@/lib/resume-types").ResumeData
+  resume: import("@/lib/resume-types").ResumeData,
+  template: ResumeTemplate
 ): string {
   const { contact, summary, experience, skills, education } = resume
   return `<!DOCTYPE html>
 <html><head><title>${contact.name} - Resume</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11pt;line-height:1.4;color:#111;max-width:8.5in;margin:0 auto;padding:0.6in 0.7in}
-  h1{font-size:18pt;font-weight:700;margin-bottom:2pt}
-  h2{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #333;padding-bottom:3pt;margin:14pt 0 6pt}
+  body{font-size:11pt;line-height:1.4;color:#111;max-width:8.5in;margin:0 auto;padding:0.6in 0.7in}
   h3{font-size:11pt;font-weight:600}
   .contact{font-size:9pt;color:#444;margin-bottom:4pt}
   .title{font-size:11pt;color:#333;margin-bottom:2pt}
@@ -95,6 +145,7 @@ function buildPrintHtml(
   .edu{margin-bottom:6pt}
   .edu-header{display:flex;justify-content:space-between}
   @media print{body{padding:0.5in 0.6in}}
+  ${template.printCss}
 </style></head><body>
 <h1>${contact.name}</h1>
 ${contact.title ? `<div class="title">${contact.title}</div>` : ""}

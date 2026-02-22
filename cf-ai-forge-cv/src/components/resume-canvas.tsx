@@ -3,12 +3,16 @@
 import { useCallback } from "react"
 import { Plus, X, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { InlineEdit } from "./inline-edit"
 import { useResumeStore } from "@/lib/resume-store"
+import { getTemplate } from "@/lib/templates"
 import { cn } from "@/lib/utils"
+
+interface ResumeCanvasProps {
+  previewMode?: boolean
+}
 
 function isHighlighted(
   highlights: { path: string; type: string }[],
@@ -17,11 +21,12 @@ function isHighlighted(
   return highlights.some((h) => h.path === path || path.startsWith(h.path))
 }
 
-export function ResumeCanvas() {
+export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
   const {
     resume,
     highlights,
     status,
+    templateId,
     updateField,
     setResume,
     addExperienceBullet,
@@ -33,6 +38,8 @@ export function ResumeCanvas() {
     addEducation,
     removeEducation,
   } = useResumeStore()
+
+  const template = getTemplate(templateId)
 
   const updateBullet = useCallback(
     (expId: string, bulletIndex: number, value: string) => {
@@ -69,8 +76,142 @@ export function ResumeCanvas() {
     )
   }
 
+  /* ── Preview mode: A4-style read-only render ── */
+  if (previewMode) {
+    return (
+      <div className="flex h-full flex-col bg-muted/30 overflow-y-auto">
+        <div className="flex justify-center py-8 px-4">
+          {/* A4 paper card */}
+          <div
+            className="w-full max-w-[794px] bg-white text-[#111] shadow-2xl rounded-sm"
+            style={{
+              fontFamily: template.fontFamily,
+              padding: "56px 64px",
+              minHeight: "1123px",
+            }}
+          >
+            {/* Name */}
+            <h1
+              className={cn("mb-1", template.nameClass)}
+              style={{ color: "#111" }}
+            >
+              {resume.contact.name || "Your Name"}
+            </h1>
+            {resume.contact.title && (
+              <p className="text-sm text-[#444] mb-1">
+                {resume.contact.title}
+              </p>
+            )}
+            <p className="text-[11px] text-[#666] mb-4">
+              {[
+                resume.contact.email,
+                resume.contact.phone,
+                resume.contact.location,
+                resume.contact.linkedin,
+                resume.contact.github,
+              ]
+                .filter(Boolean)
+                .join("  |  ")}
+            </p>
+
+            <hr className="border-[#ddd] mb-4" />
+
+            {/* Summary */}
+            {resume.summary && (
+              <>
+                <h2 className={cn("mb-2", template.headingClass)} style={{ color: undefined }}>
+                  Summary
+                </h2>
+                <p className="text-[10.5px] text-[#333] leading-relaxed mb-4">
+                  {resume.summary}
+                </p>
+              </>
+            )}
+
+            {/* Experience */}
+            {resume.experience.length > 0 && (
+              <>
+                <h2 className={cn("mb-3", template.headingClass)}>
+                  Experience
+                </h2>
+                <div className="flex flex-col gap-4 mb-4">
+                  {resume.experience.map((exp) => (
+                    <div key={exp.id}>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-[11px] font-semibold text-[#111]">
+                          {exp.role}
+                          {exp.company ? ` — ${exp.company}` : ""}
+                        </span>
+                        <span className="text-[10px] text-[#666] shrink-0 ml-4">
+                          {exp.dates}
+                        </span>
+                      </div>
+                      <ul className="mt-1 list-disc list-outside pl-4 flex flex-col gap-0.5">
+                        {exp.bullets.filter(Boolean).map((b, i) => (
+                          <li
+                            key={i}
+                            className="text-[10px] text-[#333] leading-relaxed"
+                          >
+                            {b}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Skills */}
+            {resume.skills.length > 0 && (
+              <>
+                <h2 className={cn("mb-2", template.headingClass)}>Skills</h2>
+                <p className="text-[10.5px] text-[#333] mb-4">
+                  {resume.skills.join(", ")}
+                </p>
+              </>
+            )}
+
+            {/* Education */}
+            {resume.education.length > 0 && (
+              <>
+                <h2 className={cn("mb-3", template.headingClass)}>
+                  Education
+                </h2>
+                <div className="flex flex-col gap-3">
+                  {resume.education.map((edu) => (
+                    <div key={edu.id}>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-[11px] font-semibold text-[#111]">
+                          {edu.degree}
+                          {edu.institution ? ` — ${edu.institution}` : ""}
+                        </span>
+                        <span className="text-[10px] text-[#666] shrink-0 ml-4">
+                          {edu.dates}
+                        </span>
+                      </div>
+                      {edu.details && (
+                        <p className="text-[10px] text-[#444] mt-0.5">
+                          {edu.details}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ── Edit mode ── */
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div
+      className="flex h-full flex-col bg-background"
+      style={{ fontFamily: template.fontFamily }}
+    >
       <div className="flex items-center justify-between px-6 py-2.5 border-b border-border">
         <h2 className="text-xs font-semibold text-foreground uppercase tracking-wider">
           Live Canvas
@@ -84,14 +225,14 @@ export function ResumeCanvas() {
           </Badge>
         )}
       </div>
-      <ScrollArea className="flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-8 py-6">
           {/* Contact Header */}
           <section className="mb-5">
             <InlineEdit
               value={resume.contact.name}
               onChange={(v) => updateField("contact.name", v)}
-              className="text-2xl font-bold text-foreground tracking-tight"
+              className={cn("mb-0.5", template.nameClass)}
               placeholder="Your Name"
             />
             <InlineEdit
@@ -143,9 +284,7 @@ export function ResumeCanvas() {
 
           {/* Summary */}
           <section className="mb-5">
-            <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest mb-2">
-              Summary
-            </h3>
+            <h3 className={cn("mb-2", template.headingClass)}>Summary</h3>
             <InlineEdit
               value={resume.summary}
               onChange={(v) => updateField("summary", v)}
@@ -161,9 +300,7 @@ export function ResumeCanvas() {
           {/* Experience */}
           <section className="mb-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">
-                Experience
-              </h3>
+              <h3 className={template.headingClass}>Experience</h3>
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -183,10 +320,7 @@ export function ResumeCanvas() {
                         <InlineEdit
                           value={exp.role}
                           onChange={(v) =>
-                            updateField(
-                              `experience.${exp.id}.role`,
-                              v
-                            )
+                            updateField(`experience.${exp.id}.role`, v)
                           }
                           className="text-sm font-semibold text-foreground"
                           placeholder="Role Title"
@@ -197,10 +331,7 @@ export function ResumeCanvas() {
                         <InlineEdit
                           value={exp.company}
                           onChange={(v) =>
-                            updateField(
-                              `experience.${exp.id}.company`,
-                              v
-                            )
+                            updateField(`experience.${exp.id}.company`, v)
                           }
                           className="text-sm text-foreground"
                           placeholder="Company"
@@ -228,7 +359,10 @@ export function ResumeCanvas() {
 
                   <ul className="mt-2 flex flex-col gap-1.5">
                     {exp.bullets.map((bullet, bi) => (
-                      <li key={bi} className="flex items-start gap-1 group/bullet">
+                      <li
+                        key={bi}
+                        className="flex items-start gap-1 group/bullet"
+                      >
                         <GripVertical className="size-3 text-muted-foreground/20 mt-0.5 shrink-0 opacity-0 group-hover/bullet:opacity-100 transition-opacity" />
                         <span className="text-muted-foreground/60 text-xs mt-px shrink-0">
                           {"\u2022"}
@@ -237,7 +371,7 @@ export function ResumeCanvas() {
                           value={bullet}
                           onChange={(v) => updateBullet(exp.id, bi, v)}
                           className={cn(
-                            "text-xs text-muted-foreground leading-relaxed flex-1",
+                            "text-xs text-muted-foreground leading-relaxed flex-1"
                           )}
                           placeholder="Describe your accomplishment..."
                           highlighted={isHighlighted(
@@ -249,9 +383,7 @@ export function ResumeCanvas() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() =>
-                            removeExperienceBullet(exp.id, bi)
-                          }
+                          onClick={() => removeExperienceBullet(exp.id, bi)}
                           className="size-4 text-muted-foreground/30 hover:text-destructive opacity-0 group-hover/bullet:opacity-100 transition-opacity shrink-0 mt-0.5"
                           aria-label="Remove bullet"
                         >
@@ -276,9 +408,7 @@ export function ResumeCanvas() {
           {/* Skills */}
           <section className="mb-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">
-                Skills
-              </h3>
+              <h3 className={template.headingClass}>Skills</h3>
             </div>
             <div
               className={cn(
@@ -321,9 +451,7 @@ export function ResumeCanvas() {
           {/* Education */}
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">
-                Education
-              </h3>
+              <h3 className={template.headingClass}>Education</h3>
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -343,10 +471,7 @@ export function ResumeCanvas() {
                         <InlineEdit
                           value={edu.degree}
                           onChange={(v) =>
-                            updateField(
-                              `education.${edu.id}.degree`,
-                              v
-                            )
+                            updateField(`education.${edu.id}.degree`, v)
                           }
                           className="text-sm font-semibold text-foreground"
                           placeholder="Degree"
@@ -357,10 +482,7 @@ export function ResumeCanvas() {
                         <InlineEdit
                           value={edu.institution}
                           onChange={(v) =>
-                            updateField(
-                              `education.${edu.id}.institution`,
-                              v
-                            )
+                            updateField(`education.${edu.id}.institution`, v)
                           }
                           className="text-sm text-foreground"
                           placeholder="Institution"
@@ -369,10 +491,7 @@ export function ResumeCanvas() {
                       <InlineEdit
                         value={edu.dates}
                         onChange={(v) =>
-                          updateField(
-                            `education.${edu.id}.dates`,
-                            v
-                          )
+                          updateField(`education.${edu.id}.dates`, v)
                         }
                         className="text-[11px] text-muted-foreground mt-0.5"
                         placeholder="Start - End"
@@ -380,10 +499,7 @@ export function ResumeCanvas() {
                       <InlineEdit
                         value={edu.details}
                         onChange={(v) =>
-                          updateField(
-                            `education.${edu.id}.details`,
-                            v
-                          )
+                          updateField(`education.${edu.id}.details`, v)
                         }
                         className="text-xs text-muted-foreground/70 mt-1"
                         placeholder="Additional details..."
@@ -405,9 +521,7 @@ export function ResumeCanvas() {
             </div>
           </section>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }
-
-

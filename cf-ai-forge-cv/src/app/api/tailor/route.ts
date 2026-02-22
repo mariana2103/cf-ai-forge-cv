@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { ResumeData, HighlightedField } from "@/lib/resume-types";
 
-export const runtime = "edge";
 
 const SYSTEM_PROMPT = `You are an expert resume tailoring agent. Your job is to rewrite a candidate's resume to closely match a given job description.
 
 You will receive the candidate's current resume as JSON and the job description as text.
+You may also receive a "masterProfile" — the candidate's full career history with ALL their experience, skills, and education ever recorded. When a masterProfile is provided, you should:
+1. Draw from the masterProfile to add highly relevant experience, skills, or accomplishments missing from the current resume.
+2. Select only the entries from the masterProfile that are most relevant to the JD (aim for a focused 1-page result).
+3. Reorder or substitute bullets from the masterProfile to better align with the JD.
 
 Return a JSON object with exactly this shape:
 {
@@ -27,11 +30,12 @@ Rules:
 - Return ONLY the JSON object, no markdown, no commentary.`;
 
 export async function POST(request: NextRequest) {
-  const { env } = await getCloudflareContext();
+  const { env } = getCloudflareContext();
 
-  const { resume, jobDescription } = (await request.json()) as {
+  const { resume, jobDescription, masterProfile } = (await request.json()) as {
     resume: ResumeData;
     jobDescription: string;
+    masterProfile?: ResumeData | null;
   };
 
   if (!resume || !jobDescription?.trim()) {
@@ -41,7 +45,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const userMessage = `RESUME JSON:\n${JSON.stringify(resume, null, 2)}\n\nJOB DESCRIPTION:\n${jobDescription}`;
+  const masterSection = masterProfile
+    ? `\n\nMASTER PROFILE (full career history — select the most relevant entries for this JD):\n${JSON.stringify(masterProfile, null, 2)}`
+    : "";
+
+  const userMessage = `RESUME JSON:\n${JSON.stringify(resume, null, 2)}\n\nJOB DESCRIPTION:\n${jobDescription}${masterSection}`;
 
   const response = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
     messages: [

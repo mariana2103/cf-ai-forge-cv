@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -11,17 +12,22 @@ import { LeftPanel } from "@/components/left-panel"
 import { ResumeCanvas } from "@/components/resume-canvas"
 
 export default function WorkspacePage() {
+  const [previewMode, setPreviewMode] = useState(false)
+
   return (
     <ResumeStoreProvider>
       <div className="flex h-dvh flex-col bg-background">
-        <WorkspaceHeader />
+        <WorkspaceHeader
+          previewMode={previewMode}
+          onTogglePreview={() => setPreviewMode((p) => !p)}
+        />
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
             <LeftPanel />
           </ResizablePanel>
           <ResizableHandle className="bg-border hover:bg-primary/20 transition-colors" />
           <ResizablePanel defaultSize={65} minSize={40}>
-            <ResumeCanvas />
+            <ResumeCanvas previewMode={previewMode} />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

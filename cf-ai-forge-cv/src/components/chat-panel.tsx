@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react"
 import { Send, Bot, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { useResumeStore } from "@/lib/resume-store"
 import { generateChatResponse } from "@/lib/ai-engine"
@@ -18,12 +17,7 @@ export function ChatPanel() {
 
   useEffect(() => {
     if (scrollRef.current) {
-      const viewport = scrollRef.current.querySelector(
-        "[data-slot='scroll-area-viewport']"
-      )
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight
-      }
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [chatMessages])
 
@@ -48,8 +42,7 @@ export function ChatPanel() {
           Chat
         </span>
       </div>
-      <div className="flex-1 min-h-0" ref={scrollRef}>
-        <ScrollArea className="h-full">
+      <div className="flex-1 min-h-0 overflow-y-auto" ref={scrollRef}>
           <div className="flex flex-col gap-3 px-4 py-2">
             {chatMessages.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
@@ -108,7 +101,6 @@ export function ChatPanel() {
               </div>
             )}
           </div>
-        </ScrollArea>
       </div>
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
         <Input
