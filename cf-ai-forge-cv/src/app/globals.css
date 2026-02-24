@@ -41,6 +41,37 @@
   --color-highlight: oklch(0.80 0.18 85);
 }
 
+/* Light mode overrides — applied when next-themes sets class="light" on <html> */
+html.light {
+  --background: oklch(0.98 0.003 35);
+  --foreground: oklch(0.12 0.005 35);
+  --card: oklch(0.95 0.004 35);
+  --card-foreground: oklch(0.12 0.005 35);
+  --popover: oklch(0.95 0.004 35);
+  --popover-foreground: oklch(0.12 0.005 35);
+  --primary: oklch(0.60 0.20 48);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.91 0.006 35);
+  --secondary-foreground: oklch(0.25 0.008 35);
+  --muted: oklch(0.91 0.006 35);
+  --muted-foreground: oklch(0.48 0.010 35);
+  --accent: oklch(0.88 0.010 40);
+  --accent-foreground: oklch(0.15 0.008 35);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.82 0.010 35);
+  --input: oklch(0.91 0.006 35);
+  --ring: oklch(0.60 0.20 48);
+  --sidebar: oklch(0.94 0.004 35);
+  --sidebar-foreground: oklch(0.12 0.005 35);
+  --sidebar-primary: oklch(0.60 0.20 48);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.88 0.010 40);
+  --sidebar-accent-foreground: oklch(0.12 0.005 35);
+  --sidebar-border: oklch(0.82 0.010 35);
+  --sidebar-ring: oklch(0.60 0.20 48);
+}
+
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';

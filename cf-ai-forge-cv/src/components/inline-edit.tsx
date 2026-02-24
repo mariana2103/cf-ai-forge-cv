@@ -1,11 +1,13 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { cn } from "@/lib/utils"
 
 interface InlineEditProps {
   value: string
   onChange: (value: string) => void
   className?: string
+  style?: CSSProperties
   placeholder?: string
   highlighted?: boolean
   multiline?: boolean
@@ -15,6 +17,7 @@ export function InlineEdit({
   value,
   onChange,
   className,
+  style,
   placeholder = "Click to edit...",
   highlighted = false,
   multiline = false,
@@ -34,6 +37,7 @@ export function InlineEdit({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={cn(baseClasses, "resize-none field-sizing-content min-h-[1.4em]")}
+        style={style}
         rows={1}
       />
     )
@@ -46,6 +50,7 @@ export function InlineEdit({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={baseClasses}
+      style={style}
     />
   )
 }

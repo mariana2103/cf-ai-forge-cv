@@ -12,11 +12,12 @@ CRITICAL RULES — violating these is a failure:
 1. NEVER invent, guess, or fabricate ANY information not present in the source text.
 2. Extract ONLY what is explicitly written. Missing fields → "" or [].
 3. Copy bullet points verbatim. Normalize whitespace and bullet punctuation (–, —, •) to a plain hyphen, but change nothing else.
-4. Extract ALL experience entries, ALL education, ALL skills — do not truncate.
-5. Use sectionOrder to reflect the actual order sections appear in the resume.
-6. Add a section to sectionOrder ONLY if it appears in the source text.
-7. Generate short (6-char) random alphanumeric IDs for all entries.
-8. Copy dates exactly as written — do not normalize or reformat.
+4. Extract ALL experience entries, ALL education, ALL skills — do not truncate. Missing even one is a failure.
+5. For each experience entry: copy the EXACT job title/role as written (e.g. "Game Developer", "Software Engineer Intern", "Lead Designer") — do not paraphrase or generalize. Same for company name.
+6. Use sectionOrder to reflect the actual order sections appear in the resume.
+7. Add a section to sectionOrder ONLY if it appears in the source text.
+8. Generate short (6-char) random alphanumeric IDs for all entries.
+9. Copy dates exactly as written — do not normalize or reformat.
 
 SKILLS FORMAT:
 - Group skills into focused, granular categories that reflect the source text.
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
   // Truncate to avoid 1031 "input too large" from Workers AI
   const truncated = text.length > MAX_INPUT_CHARS ? text.slice(0, MAX_INPUT_CHARS) : text;
 
-  const response = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+  const response = await env.AI.run("@cf/meta/llama-3.2-3b-instruct", {
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: `Parse this resume text:\n\n${truncated}` },
@@ -62,8 +63,21 @@ export async function POST(request: NextRequest) {
     max_tokens: 4096,
   });
 
-  const raw = (response as { response: string }).response.trim();
-  const jsonStr = raw.startsWith("```") ? raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "") : raw;
+  const aiText = (response as { response?: string | null }).response;
+  if (typeof aiText !== "string" || !aiText) {
+    return NextResponse.json({ error: "Workers AI returned empty or non-text response" }, { status: 500 });
+  }
+  const raw = aiText.trim();
+  // Robust JSON extraction — handles preamble text, ```json fences, or bare JSON
+  let jsonStr = raw;
+  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (fenceMatch) {
+    jsonStr = fenceMatch[1].trim();
+  } else if (!raw.startsWith("{")) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start !== -1 && end > start) jsonStr = raw.slice(start, end + 1);
+  }
 
   let resume: ResumeData;
   try {

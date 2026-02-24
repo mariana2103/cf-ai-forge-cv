@@ -67,7 +67,11 @@ export async function POST(request: NextRequest) {
     max_tokens: 4096,
   });
 
-  const raw = (response as { response: string }).response.trim();
+  const aiText = (response as { response?: string | null }).response;
+  if (typeof aiText !== "string" || !aiText) {
+    return NextResponse.json({ reply: "I ran into an issue reaching the AI — please try again.", updatedResume: null });
+  }
+  const raw = aiText.trim();
   const jsonStr = raw.startsWith("```") ? raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "") : raw;
 
   let parsed: { reply: string; updatedResume: ResumeData | null };

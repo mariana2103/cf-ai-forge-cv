@@ -1,6 +1,15 @@
 "use client"
 
-import { useCallback } from "react"
+import React, { useCallback, useState } from "react"
+
+/** Extract a short display label and a full href from a social URL.
+ *  "github.com/alexchen" → { href: "https://github.com/alexchen", label: "alexchen" }
+ */
+function parseSocial(url: string): { href: string; label: string } {
+  const href = url.startsWith("http") ? url : `https://${url}`
+  const label = url.replace(/\/$/, "").split("/").filter(Boolean).pop() ?? url
+  return { href, label }
+}
 import { Plus, X, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +38,7 @@ const ALL_SECTIONS: SectionKey[] = [
 
 export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
   const {
-    resume, highlights, status, templateId,
+    resume, highlights, status, templateId, accentColor,
     updateField, setResume,
     addSection, removeSection, moveSectionUp, moveSectionDown,
     addExperienceBullet, removeExperienceBullet, addExperience, removeExperience,
@@ -42,6 +51,27 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
   } = useResumeStore()
 
   const template = getTemplate(templateId)
+  const nameColor = template.supportsAccent ? accentColor : template.textColor
+
+  // Inline-input state for skill adding (replaces browser prompt())
+  const [addingSkillTo, setAddingSkillTo] = useState<string | null>(null)
+  const [newSkillValue, setNewSkillValue] = useState("")
+  const [addingCategory, setAddingCategory] = useState(false)
+  const [newCategoryValue, setNewCategoryValue] = useState("")
+
+  const commitNewSkill = (catId: string) => {
+    if (newSkillValue.trim()) addSkillToCategory(catId, newSkillValue.trim())
+    setNewSkillValue("")
+    setAddingSkillTo(null)
+  }
+  const commitNewCategory = () => {
+    if (newCategoryValue.trim()) addSkillCategory(newCategoryValue.trim())
+    setNewCategoryValue("")
+    setAddingCategory(false)
+  }
+  // For Rezi+: section headings and role titles also pick up the accent color
+  const headingStyle = template.supportsAccent ? { color: accentColor } : undefined
+  const roleStyle = template.supportsAccent ? { color: accentColor, fontWeight: 600 as const } : undefined
 
   const updateBullet = useCallback(
     (expId: string, bi: number, value: string) => {
@@ -91,32 +121,29 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
       case "summary":
         if (!resume.summary) return null
         return (
-          <div key="summary" className="mb-4">
-            <h2 className={cn("mb-1.5", template.headingClass)}>Summary</h2>
-            <p className="text-[10.5px] text-[#333] leading-relaxed">{resume.summary}</p>
+          <div key="summary" className="mb-3">
+            <h2 className={cn("mb-1", template.headingClass)} style={headingStyle}>Summary</h2>
+            <p className="text-[10px] text-[#333] leading-relaxed">{resume.summary}</p>
           </div>
         )
 
       case "experience":
         if (!resume.experience.length) return null
         return (
-          <div key="experience" className="mb-4">
-            <h2 className={cn("mb-2", template.headingClass)}>Experience</h2>
-            <div className="flex flex-col gap-3">
+          <div key="experience" className="mb-3">
+            <h2 className={cn("mb-1.5", template.headingClass)} style={headingStyle}>Experience</h2>
+            <div className="flex flex-col gap-2">
               {resume.experience.map((exp) => (
                 <div key={exp.id}>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] font-semibold text-[#111]">
-                      {exp.role}{exp.company ? ` — ${exp.company}` : ""}
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="text-[10.5px] font-semibold text-[#111]" style={roleStyle}>
+                      {exp.role}{exp.company ? ` — ${exp.company}` : ""}{exp.location ? `, ${exp.location}` : ""}
                     </span>
-                    <span className="text-[10px] text-[#666] shrink-0 ml-4">{exp.dates}</span>
+                    <span className="text-[9.5px] text-[#666] shrink-0">{exp.dates}</span>
                   </div>
-                  {exp.location && (
-                    <p className="text-[10px] text-[#555] mt-px">{exp.location}</p>
-                  )}
-                  <ul className="mt-0.5 list-disc list-outside pl-4 flex flex-col gap-0.5">
+                  <ul className="mt-0.5 list-disc list-outside pl-3.5 flex flex-col gap-px">
                     {exp.bullets.filter(Boolean).map((b, i) => (
-                      <li key={i} className="text-[10px] text-[#333] leading-relaxed">{b}</li>
+                      <li key={i} className="text-[9.5px] text-[#333] leading-relaxed">{b}</li>
                     ))}
                   </ul>
                 </div>
@@ -129,11 +156,11 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
         const nonEmpty = resume.skills.filter((c) => c.skills.length > 0)
         if (!nonEmpty.length) return null
         return (
-          <div key="skills" className="mb-4">
-            <h2 className={cn("mb-1.5", template.headingClass)}>Skills</h2>
-            <div className="flex flex-col gap-0.5">
+          <div key="skills" className="mb-3">
+            <h2 className={cn("mb-1", template.headingClass)} style={headingStyle}>Skills</h2>
+            <div className="flex flex-col gap-px">
               {nonEmpty.map((cat) => (
-                <p key={cat.id} className="text-[10.5px] text-[#333]">
+                <p key={cat.id} className="text-[9.5px] text-[#333]">
                   <span className="font-semibold">{cat.label}: </span>
                   {cat.skills.join(", ")}
                 </p>
@@ -146,19 +173,19 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
       case "education":
         if (!resume.education.length) return null
         return (
-          <div key="education" className="mb-4">
-            <h2 className={cn("mb-2", template.headingClass)}>Education</h2>
-            <div className="flex flex-col gap-2">
+          <div key="education" className="mb-3">
+            <h2 className={cn("mb-1.5", template.headingClass)} style={headingStyle}>Education</h2>
+            <div className="flex flex-col gap-1.5">
               {resume.education.map((edu) => (
                 <div key={edu.id}>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] font-semibold text-[#111]">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="text-[10.5px] font-semibold text-[#111]">
                       {edu.degree}{edu.institution ? ` — ${edu.institution}` : ""}
                     </span>
-                    <span className="text-[10px] text-[#666] shrink-0 ml-4">{edu.dates}</span>
+                    <span className="text-[9.5px] text-[#666] shrink-0">{edu.dates}</span>
                   </div>
                   {edu.details && (
-                    <p className="text-[10px] text-[#444] mt-0.5">{edu.details}</p>
+                    <p className="text-[9.5px] text-[#444] mt-px">{edu.details}</p>
                   )}
                 </div>
               ))}
@@ -169,24 +196,24 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
       case "projects":
         if (!resume.projects.length) return null
         return (
-          <div key="projects" className="mb-4">
-            <h2 className={cn("mb-2", template.headingClass)}>Projects</h2>
-            <div className="flex flex-col gap-3">
+          <div key="projects" className="mb-3">
+            <h2 className={cn("mb-1.5", template.headingClass)} style={headingStyle}>Projects</h2>
+            <div className="flex flex-col gap-2">
               {resume.projects.map((proj) => (
                 <div key={proj.id}>
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] font-semibold text-[#111]">{proj.name}</span>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="text-[10.5px] font-semibold text-[#111]">{proj.name}</span>
                     {proj.dates && (
-                      <span className="text-[10px] text-[#666] shrink-0 ml-4">{proj.dates}</span>
+                      <span className="text-[9.5px] text-[#666] shrink-0">{proj.dates}</span>
                     )}
                   </div>
                   {proj.description && (
-                    <p className="text-[10px] text-[#444] mt-0.5">{proj.description}</p>
+                    <p className="text-[9.5px] text-[#444] mt-px">{proj.description}</p>
                   )}
                   {proj.bullets.filter(Boolean).length > 0 && (
-                    <ul className="mt-0.5 list-disc list-outside pl-4 flex flex-col gap-0.5">
+                    <ul className="mt-0.5 list-disc list-outside pl-3.5 flex flex-col gap-px">
                       {proj.bullets.filter(Boolean).map((b, i) => (
-                        <li key={i} className="text-[10px] text-[#333] leading-relaxed">{b}</li>
+                        <li key={i} className="text-[9.5px] text-[#333] leading-relaxed">{b}</li>
                       ))}
                     </ul>
                   )}
@@ -199,8 +226,8 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
       case "certifications":
         if (!resume.certifications.length) return null
         return (
-          <div key="certifications" className="mb-4">
-            <h2 className={cn("mb-2", template.headingClass)}>Certifications</h2>
+          <div key="certifications" className="mb-3">
+            <h2 className={cn("mb-1.5", template.headingClass)} style={headingStyle}>Certifications</h2>
             <div className="flex flex-col gap-1.5">
               {resume.certifications.map((cert) => (
                 <div key={cert.id}>
@@ -224,8 +251,8 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
       case "awards":
         if (!resume.awards.length) return null
         return (
-          <div key="awards" className="mb-4">
-            <h2 className={cn("mb-2", template.headingClass)}>Awards</h2>
+          <div key="awards" className="mb-3">
+            <h2 className={cn("mb-1.5", template.headingClass)} style={headingStyle}>Awards</h2>
             <div className="flex flex-col gap-1.5">
               {resume.awards.map((award) => (
                 <div key={award.id}>
@@ -247,8 +274,8 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
       case "publications":
         if (!resume.publications.length) return null
         return (
-          <div key="publications" className="mb-4">
-            <h2 className={cn("mb-2", template.headingClass)}>Publications</h2>
+          <div key="publications" className="mb-3">
+            <h2 className={cn("mb-1.5", template.headingClass)} style={headingStyle}>Publications</h2>
             <div className="flex flex-col gap-2">
               {resume.publications.map((pub) => (
                 <div key={pub.id}>
@@ -381,8 +408,8 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
                       </li>
                     ))}
                   </ul>
-                  <button onClick={() => addExperienceBullet(exp.id)} className="mt-1.5 ml-6 text-[10px] text-muted-foreground/40 hover:text-primary transition-colors">
-                    + add bullet
+                  <button onClick={() => addExperienceBullet(exp.id)} className="mt-1.5 ml-6 inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors">
+                    <Plus className="size-2.5" />add bullet
                   </button>
                 </div>
               ))}
@@ -397,17 +424,29 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
               <h3 className={template.headingClass}>Skills</h3>
               <div className="flex items-center gap-1">
                 <SectionControls sectionKey={key} idx={idx} />
-                <Button
-                  variant="ghost" size="icon-sm"
-                  onClick={() => {
-                    const label = prompt("Category name (e.g. Programming Languages):")
-                    if (label?.trim()) addSkillCategory(label.trim())
-                  }}
-                  className="size-6 text-muted-foreground hover:text-primary"
-                  aria-label="Add skill category"
-                >
-                  <Plus className="size-3" />
-                </Button>
+                {addingCategory ? (
+                  <input
+                    autoFocus
+                    value={newCategoryValue}
+                    onChange={(e) => setNewCategoryValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitNewCategory()
+                      if (e.key === "Escape") { setNewCategoryValue(""); setAddingCategory(false) }
+                    }}
+                    onBlur={commitNewCategory}
+                    className="text-[11px] bg-secondary/50 border border-primary/30 rounded px-1.5 py-0.5 outline-none w-32 text-foreground"
+                    placeholder="Category name..."
+                  />
+                ) : (
+                  <Button
+                    variant="ghost" size="icon-sm"
+                    onClick={() => { setAddingCategory(true); setNewCategoryValue("") }}
+                    className="size-6 text-muted-foreground hover:text-primary"
+                    aria-label="Add skill category"
+                  >
+                    <Plus className="size-3" />
+                  </Button>
+                )}
               </div>
             </div>
             <div className={cn("flex flex-col gap-3", isHighlighted(highlights, "skills") && "ring-1 ring-amber-400/30 rounded-md p-2 bg-amber-400/5")}>
@@ -441,12 +480,27 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
                         </button>
                       </Badge>
                     ))}
-                    <button
-                      onClick={() => { const s = prompt(`Add skill to ${cat.label}:`); if (s?.trim()) addSkillToCategory(cat.id, s.trim()) }}
-                      className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors"
-                    >
-                      <Plus className="size-2.5" />add
-                    </button>
+                    {addingSkillTo === cat.id ? (
+                      <input
+                        autoFocus
+                        value={newSkillValue}
+                        onChange={(e) => setNewSkillValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitNewSkill(cat.id)
+                          if (e.key === "Escape") { setNewSkillValue(""); setAddingSkillTo(null) }
+                        }}
+                        onBlur={() => commitNewSkill(cat.id)}
+                        className="rounded-md border border-primary/40 bg-secondary/50 px-2 py-0.5 text-[11px] text-foreground outline-none w-24"
+                        placeholder="Skill..."
+                      />
+                    ) : (
+                      <button
+                        onClick={() => { setAddingSkillTo(cat.id); setNewSkillValue("") }}
+                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors"
+                      >
+                        <Plus className="size-2.5" />add
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -533,8 +587,8 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
                       </li>
                     ))}
                   </ul>
-                  <button onClick={() => addProjectBullet(proj.id)} className="mt-1.5 ml-6 text-[10px] text-muted-foreground/40 hover:text-primary transition-colors">
-                    + add bullet
+                  <button onClick={() => addProjectBullet(proj.id)} className="mt-1.5 ml-6 inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors">
+                    <Plus className="size-2.5" />add bullet
                   </button>
                 </div>
               ))}
@@ -655,22 +709,39 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
         <div style={{ zoom: 0.65 }}>
           <div
             className="bg-white text-[#111] shadow-2xl"
-            style={{ fontFamily: template.fontFamily, padding: "56px 64px", width: 794, minHeight: 1123 }}
+            style={{ fontFamily: template.fontFamily, padding: "42px 52px", width: 794, minHeight: 1123 }}
           >
-            {/* Fixed contact header */}
-            <h1 className={cn("mb-1", template.nameClass)} style={{ color: "#111" }}>
-              {resume.contact.name || "Your Name"}
-            </h1>
-            {resume.contact.title && (
-              <p className="text-sm text-[#444] mb-1">{resume.contact.title}</p>
-            )}
-            <p className="text-[11px] text-[#666] mb-4">
-              {[
-                resume.contact.email, resume.contact.phone, resume.contact.location,
-                resume.contact.linkedin, resume.contact.github,
-              ].filter(Boolean).join("  |  ")}
-            </p>
-            <hr className="border-[#ddd] mb-4" />
+            {/* Centered contact header — no location, social as links */}
+            <div className="text-center mb-3">
+              <h1 className={cn("mb-0.5", template.nameClass)} style={{ color: nameColor }}>
+                {resume.contact.name || "Your Name"}
+              </h1>
+              {resume.contact.title && (
+                <p className="text-[11px] text-[#444] mb-1">{resume.contact.title}</p>
+              )}
+              <div className="flex flex-wrap items-center justify-center gap-x-0 text-[10px] text-[#555]">
+                {(() => {
+                  const parts: { key: string; node: React.ReactNode }[] = []
+                  if (resume.contact.email) parts.push({ key: "email", node: resume.contact.email })
+                  if (resume.contact.phone) parts.push({ key: "phone", node: resume.contact.phone })
+                  if (resume.contact.linkedin) {
+                    const s = parseSocial(resume.contact.linkedin)
+                    parts.push({ key: "li", node: <a href={s.href} target="_blank" rel="noopener noreferrer" className="text-[#2563eb] hover:underline">{s.label}</a> })
+                  }
+                  if (resume.contact.github) {
+                    const s = parseSocial(resume.contact.github)
+                    parts.push({ key: "gh", node: <a href={s.href} target="_blank" rel="noopener noreferrer" className="text-[#2563eb] hover:underline">{s.label}</a> })
+                  }
+                  return parts.map((p, i) => (
+                    <span key={p.key} className="flex items-center">
+                      {i > 0 && <span className="mx-1.5 opacity-40">|</span>}
+                      {p.node}
+                    </span>
+                  ))
+                })()}
+              </div>
+            </div>
+            <hr className="border-[#ddd] mb-3" />
             {/* Dynamic sections in LLM-controlled order */}
             {resume.sectionOrder.map((key) => previewSection(key))}
           </div>
@@ -699,30 +770,28 @@ export function ResumeCanvas({ previewMode = false }: ResumeCanvasProps) {
         <div className="mx-auto max-w-2xl px-8 py-6">
 
           {/* Fixed contact header — never in sectionOrder */}
-          <section className="mb-5">
+          <section className="mb-5 text-center">
             <InlineEdit
               value={resume.contact.name}
               onChange={(v) => updateField("contact.name", v)}
-              className={cn("mb-0.5", template.nameClass)}
+              className={cn("mb-0.5 text-center", template.nameClass)}
+              style={{ color: nameColor }}
               placeholder="Your Name"
             />
             <InlineEdit
               value={resume.contact.title}
               onChange={(v) => updateField("contact.title", v)}
-              className="text-sm text-muted-foreground mt-0.5"
+              className="text-sm text-muted-foreground mt-0.5 text-center"
               placeholder="Professional Title"
             />
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-              <InlineEdit value={resume.contact.email} onChange={(v) => updateField("contact.email", v)} className="text-xs text-muted-foreground w-auto" placeholder="email@example.com" />
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-2">
+              <InlineEdit value={resume.contact.email} onChange={(v) => updateField("contact.email", v)} className="text-xs text-muted-foreground w-auto" placeholder="email" />
               <span className="text-muted-foreground/30 text-xs">|</span>
-              <InlineEdit value={resume.contact.phone} onChange={(v) => updateField("contact.phone", v)} className="text-xs text-muted-foreground w-auto" placeholder="Phone" />
+              <InlineEdit value={resume.contact.phone} onChange={(v) => updateField("contact.phone", v)} className="text-xs text-muted-foreground w-auto" placeholder="phone" />
               <span className="text-muted-foreground/30 text-xs">|</span>
-              <InlineEdit value={resume.contact.location} onChange={(v) => updateField("contact.location", v)} className="text-xs text-muted-foreground w-auto" placeholder="Location" />
-            </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-              <InlineEdit value={resume.contact.linkedin} onChange={(v) => updateField("contact.linkedin", v)} className="text-xs text-primary/70 w-auto" placeholder="LinkedIn URL" />
+              <InlineEdit value={resume.contact.linkedin} onChange={(v) => updateField("contact.linkedin", v)} className="text-xs text-primary/70 w-auto" placeholder="linkedin URL" />
               <span className="text-muted-foreground/30 text-xs">|</span>
-              <InlineEdit value={resume.contact.github} onChange={(v) => updateField("contact.github", v)} className="text-xs text-primary/70 w-auto" placeholder="GitHub URL" />
+              <InlineEdit value={resume.contact.github} onChange={(v) => updateField("contact.github", v)} className="text-xs text-primary/70 w-auto" placeholder="github URL" />
             </div>
           </section>
 

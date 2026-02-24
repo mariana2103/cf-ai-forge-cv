@@ -36,10 +36,14 @@ export function JdPanel() {
 
     try {
       const masterProfile = getMaster()
+      // Always tailor from the master profile (source of truth).
+      // Using the canvas state would compound previous tailoring sessions —
+      // e.g. a cyber-tailored resume fed into a software-engineer tailor.
+      const baseResume = masterProfile ?? resume
       const res = await fetch("/api/tailor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, jobDescription, masterProfile }),
+        body: JSON.stringify({ resume: baseResume, jobDescription, masterProfile }),
       })
 
       if (!res.ok) throw new Error(await res.text())

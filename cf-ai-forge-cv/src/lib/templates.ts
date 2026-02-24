@@ -94,7 +94,7 @@ export const RESUME_TEMPLATES: ResumeTemplate[] = [
       h1 { font-size: 20pt; font-weight: 700; color: {{ACCENT}}; margin-bottom: 2pt; }
       .contact-line { font-size: 9pt; color: #444; margin-bottom: 8pt; }
       h2 { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5pt;
-           color: #1a1a2e; border-bottom: 0.75pt solid #c8c8c8; padding-bottom: 2pt; margin: 13pt 0 5pt; }
+           color: {{ACCENT}}; border-bottom: 0.75pt solid #c8c8c8; padding-bottom: 2pt; margin: 13pt 0 5pt; }
       .job-meta { font-size: 10pt; margin-bottom: 3pt; }
       .job-role { font-weight: 600; color: {{ACCENT}}; }
       ul { list-style: none; padding-left: 12pt; margin: 3pt 0; }

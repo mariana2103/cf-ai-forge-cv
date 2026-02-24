@@ -52,40 +52,8 @@ export function simulateTailoring(
     }
   }
 
-  // Reorder skills to front-load relevant ones
-  const prioritySkills = [
-    "TypeScript",
-    "Go",
-    "Kubernetes",
-    "Terraform",
-    "AWS",
-    "Kafka",
-    "PostgreSQL",
-    "Redis",
-    "Docker",
-    "CI/CD",
-    "Python",
-    "Rust",
-    "Apache Flink",
-    "System Design",
-  ]
-  tailored.skills = prioritySkills.filter(
-    (s) =>
-      resume.skills.some(
-        (rs) => rs.toLowerCase() === s.toLowerCase()
-      )
-  )
-  // Add any missing original skills
-  resume.skills.forEach((s) => {
-    if (
-      !tailored.skills.some(
-        (ts) => ts.toLowerCase() === s.toLowerCase()
-      )
-    ) {
-      tailored.skills.push(s)
-    }
-  })
-  highlights.push({ path: "skills", type: "changed" })
+  // Skills are SkillCategory[] — preserve as-is in simulation mode
+  // (real reordering happens via the AI tailoring API)
 
   return { tailored, highlights }
 }
