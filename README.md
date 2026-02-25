@@ -69,19 +69,19 @@ Click **Export PDF** to generate a pixel-perfect PDF from the current canvas sta
 
 ## Implementation Roadmap
 
-### Phase 1 — Cloudflare Native Setup ✅
+### Phase 1 — Cloudflare Native Setup
 - [x] Initialize with `create-cloudflare@latest --framework=next`
 - [x] Bind Worker to D1 and R2 via `wrangler.jsonc`
 - [x] Run `cf-typegen` for typed bindings (`env.AI`, `env.DB`, `env.BUCKET`)
 
-### Phase 2 — Parser & UI ✅
+### Phase 2 — Parser & UI 
 - [x] Drag-and-drop zone via `react-dropzone` (PDF + TXT)
 - [x] Client-side PDF text extraction via `pdfjs-dist`
 - [x] `POST /api/upload` stores raw file in R2
 - [x] `POST /api/parse` structures raw text into Resume JSON via Workers AI
 - [x] Dual-pane workspace: left command panel + right live canvas
 
-### Phase 3 — AI Logic ✅
+### Phase 3 — AI Logic 
 - [x] `POST /api/tailor` — gap analysis + chain-of-thought rewrites via Llama 3.3-70B
 - [x] Reasoning Agent: every change returns a `{ section, change, why }` log
 - [x] Highlights system: changed fields turn amber on the canvas
