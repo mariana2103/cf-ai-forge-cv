@@ -53,4 +53,4 @@ Each entry follows this structure:
 - **The Pivot** — what was changed and why that approach
 - **The Lesson** — the generalizable takeaway (especially Cloudflare-specific constraints)
 
-Tone: professional, in-the-trenches. A senior dev explaining decisions to a peer, not a polished post-mortem.
+Tone: professional, in-the-trenches. A senior dev explaining decisions to a peer.
