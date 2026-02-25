@@ -1,6 +1,6 @@
 # ForgeCV — Edge-First AI Resume Engine
 
-> Parse, tailor, and export a job-specific resume in under 60 seconds — entirely on the Cloudflare Global Network.
+> Parse, tailor, and export a job-specific resume in under 60 seconds. All entirely on the Cloudflare Global Network.
 
 ---
 
@@ -19,10 +19,10 @@ ForgeCV removes the manual loop. Upload once, tailor in seconds, download a clea
 ## How It Works
 
 ### 1. Ingest
-Drop a PDF or paste raw text. The browser extracts the content with `pdfjs-dist`, sends plain text to a Cloudflare Worker, and **Llama 3.2-3B** structures it into a typed JSON resume schema — preserving every role, bullet, and date exactly as written.
+Drop a PDF or paste raw text. The browser extracts the content with `pdfjs-dist`, sends plain text to a Cloudflare Worker, and **Llama 3.2-3B** structures it into a typed JSON resume schema, preserving every role, bullet, and date exactly as written.
 
 ### 2. Live Edit
-The parsed resume renders immediately as an editable canvas. Click any field to edit inline. Add, remove, or reorder sections. The right panel is always the source of truth; the JSON follows your edits in real time.
+The parsed resume renders immediately as an editable canvas. Click any field to edit inline. Add, remove, or reorder sections. The right panel is always the source of truth, the JSON follows your edits in real time.
 
 ### 3. AI Tailor
 Paste a Job Description and hit **Tailor for JD**. The Worker sends your master career history (not the current canvas state) plus the JD to **Llama 3.3-70B**. The agent:
@@ -101,7 +101,7 @@ Click **Export PDF** to generate a pixel-perfect PDF from the current canvas sta
 
 1. **Latency** — AI inference runs in the same data center where the request lands. No round-trip to a third-party LLM API.
 2. **Privacy** — User data stays within Cloudflare's network perimeter. Nothing is sent to OpenAI, Anthropic, or any external provider.
-3. **Cost** — Workers AI + D1 is a fraction of the cost of hosted LLM APIs plus managed database hosting.
+3. **Cost** — Workers AI is a fraction of the cost of hosted LLM APIs plus managed database hosting.
 
 ---
 
