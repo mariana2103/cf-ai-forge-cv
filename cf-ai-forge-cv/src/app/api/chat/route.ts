@@ -14,8 +14,9 @@ What you can do:
 - Rewrite or strengthen bullets using the Google X-Y-Z formula: "Accomplished [X] as measured by [Y], by doing [Z]"
 - Restructure sections (sectionOrder), reframe narratives, tailor for a specific role
 - Add missing sections, remove irrelevant ones, surface skills mentioned in the bio
-- Audit the full resume for ATS risks, vague language, or weak impact statements
-- Proactively flag weak points even when not asked — be direct and specific
+- Audit the resume for ATS risks, vague language, or weak impact statements — but ONLY when asked
+
+Respond only to what the user asks. Do not volunteer unsolicited summaries, entry counts, or audits.
 
 Resume schema:
 - sectionOrder valid values: "summary" | "experience" | "skills" | "education" | "projects" | "certifications" | "awards" | "publications"
@@ -27,11 +28,44 @@ Content rules (non-negotiable):
 - If a bullet needs a metric that isn't available, rewrite it using the best partial X-Y-Z and note what the candidate should quantify.
 - Preserve all existing entry IDs when returning updatedResume.
 
+Editing rules (critical — violations break the UI):
+- When the user asks to CHANGE, RENAME, or UPDATE a field: find that exact entry in the JSON by its id, modify only the requested field(s), and return the full resume with that entry updated in place. DO NOT add a new entry alongside the old one.
+- When the user asks to DELETE an entry: remove it from its array. DO NOT keep it.
+- When the user asks to ADD something new: append it to the correct array with a new unique id.
+- The updatedResume must have the same number of entries as the current resume UNLESS the user explicitly asked to add or remove something.
+- Never duplicate entries. If an experience, skill, or education already exists and you are asked to modify it, update it — do not create a copy.
+
 Return ONLY this JSON — no markdown, no preamble:
 When answering: { "reply": "<direct, concise answer>", "updatedResume": null }
-When editing: { "reply": "<what changed and why — 1-3 sentences>", "updatedResume": <complete ResumeData> }
+When editing: { "reply": "<what changed — 1 sentence>", "updatedResume": { <ONLY the top-level keys you actually changed — e.g. if you only changed education, return just "education": [...]. Do NOT include sections you did not touch.> } }
+
+Examples:
+- Remove an education entry → { "reply": "Removed Bachelor of Computer Engineering.", "updatedResume": { "education": [<remaining entries only>] } }
+- Add a skill → { "reply": "Added JavaScript to Programming Languages.", "updatedResume": { "skills": [<full skills array with new skill>] } }
+- Change a job title → { "reply": "Updated role title.", "updatedResume": { "experience": [<all experience entries with the one title changed>] } }
+- Edit summary → { "reply": "Rewrote summary.", "updatedResume": { "summary": "<new summary text>" } }
 
 Tone: Direct, expert, and honest. No filler or sycophantic phrases. If the resume has real problems, name them clearly.`;
+
+/** Attempt to close any unclosed brackets/braces so truncated JSON can parse. */
+function repairJson(str: string): string {
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  for (const ch of str) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  // If mid-string at truncation point, close the string first
+  let result = str;
+  if (inString) result += '"';
+  return result + stack.reverse().join("");
+}
 
 export async function POST(request: NextRequest) {
   const { env } = getCloudflareContext();
@@ -47,13 +81,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }
 
-  // Limit history to last 8 messages to avoid context overflow
-  const recentMessages = messages.slice(-8);
+  // Limit history to last 6 messages to avoid context overflow
+  const recentMessages = messages.slice(-6);
+
+  // Compact JSON (no indentation) fits ~3x more data within the char cap
+  const resumeRaw = JSON.stringify(resume);
+  const resumeStr = resumeRaw.length > 6_000
+    ? resumeRaw.slice(0, 6_000) + "...[truncated]"
+    : resumeRaw;
 
   const contextParts = [
-    `CURRENT RESUME JSON:\n${JSON.stringify(resume, null, 2)}`,
-    jobDescription?.trim() ? `JOB DESCRIPTION:\n${jobDescription.slice(0, 3000)}` : null,
-    bio?.trim() ? `USER BACKGROUND:\n${bio.slice(0, 2000)}` : null,
+    `CURRENT RESUME JSON:\n${resumeStr}`,
+    jobDescription?.trim() ? `JOB DESCRIPTION:\n${jobDescription.slice(0, 2_000)}` : null,
+    bio?.trim() ? `USER BACKGROUND:\n${bio.slice(0, 1_000)}` : null,
   ].filter(Boolean);
 
   const primed = [
@@ -62,9 +102,9 @@ export async function POST(request: NextRequest) {
     ...recentMessages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  const response = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+  const response = await env.AI.run("@cf/meta/llama-3.2-3b-instruct", {
     messages: [{ role: "system", content: SYSTEM_PROMPT }, ...primed],
-    max_tokens: 4096,
+    max_tokens: 2048,
   });
 
   const aiText = (response as { response?: string | null }).response;
@@ -72,21 +112,46 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ reply: "I ran into an issue reaching the AI — please try again.", updatedResume: null });
   }
   const raw = aiText.trim();
-  const jsonStr = raw.startsWith("```") ? raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "") : raw;
+  // Robust JSON extraction — handles preamble text, ```json fences, or bare JSON
+  let jsonStr = raw;
+  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (fenceMatch) {
+    jsonStr = fenceMatch[1].trim();
+  } else if (!raw.startsWith("{")) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start !== -1 && end > start) jsonStr = raw.slice(start, end + 1);
+  }
 
   let parsed: { reply: string; updatedResume: ResumeData | null };
   try {
-    parsed = JSON.parse(jsonStr);
+    // First try as-is; if it fails, attempt bracket repair for truncated output
+    let parseTarget = jsonStr;
+    try { JSON.parse(jsonStr); } catch { parseTarget = repairJson(jsonStr); }
+    parsed = JSON.parse(parseTarget);
     if (parsed.updatedResume) {
-      // Ensure new schema fields exist
-      parsed.updatedResume.projects = parsed.updatedResume.projects ?? resume.projects ?? [];
-      parsed.updatedResume.certifications = parsed.updatedResume.certifications ?? resume.certifications ?? [];
-      parsed.updatedResume.awards = parsed.updatedResume.awards ?? resume.awards ?? [];
-      parsed.updatedResume.publications = parsed.updatedResume.publications ?? resume.publications ?? [];
-      parsed.updatedResume.sectionOrder = parsed.updatedResume.sectionOrder ?? resume.sectionOrder;
+      // Merge partial AI response into the original resume so a model that only returns
+      // the changed section (e.g. just "skills") cannot wipe out the rest of the canvas.
+      parsed.updatedResume = {
+        contact:        { ...resume.contact, ...(parsed.updatedResume.contact ?? {}) },
+        summary:        parsed.updatedResume.summary        ?? resume.summary,
+        sectionOrder:   parsed.updatedResume.sectionOrder   ?? resume.sectionOrder,
+        experience:     parsed.updatedResume.experience     ?? resume.experience,
+        skills:         parsed.updatedResume.skills         ?? resume.skills,
+        education:      parsed.updatedResume.education      ?? resume.education,
+        projects:       parsed.updatedResume.projects       ?? resume.projects       ?? [],
+        certifications: parsed.updatedResume.certifications ?? resume.certifications ?? [],
+        awards:         parsed.updatedResume.awards         ?? resume.awards         ?? [],
+        publications:   parsed.updatedResume.publications   ?? resume.publications   ?? [],
+      };
     }
   } catch {
-    parsed = { reply: raw.slice(0, 800), updatedResume: null };
+    // Try to extract the reply field even if the overall JSON was truncated
+    const replyMatch = raw.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    parsed = {
+      reply: replyMatch?.[1] ?? "I couldn't apply that edit — please try again with a simpler request.",
+      updatedResume: null,
+    };
   }
 
   return NextResponse.json(parsed);

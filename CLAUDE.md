@@ -15,7 +15,8 @@ App lives in `cf-ai-forge-cv/`. All source code is under `cf-ai-forge-cv/src/`.
 | Framework | Next.js 16, App Router, via `@opennextjs/cloudflare@^1.17.0` |
 | Runtime | Cloudflare Workers (V8 Isolates) |
 | AI — Parsing | `@cf/meta/llama-3.2-3b-instruct` via `env.AI.run(...)` |
-| AI — Tailoring | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` via `env.AI.run(...)` |
+| AI — Tailoring | `@cf/meta/llama-3.1-8b-instruct-fp8` via Cloudflare Workflow (`workflow-worker.ts`) |
+| Workflow | Cloudflare Workflows — `forgecv-workflow` worker, bound as `TAILOR_WORKFLOW` |
 | Database | Cloudflare D1 via `env.DB` |
 | Storage | Cloudflare R2 via `env.BUCKET` |
 | PDF extraction | `pdfjs-dist` (browser-side only) |
@@ -34,7 +35,7 @@ App lives in `cf-ai-forge-cv/`. All source code is under `cf-ai-forge-cv/src/`.
 
 **Master Profile vs. Canvas state:** The master profile (stored in localStorage under `forgecv-master-profile`) is the source of truth — the full unmodified career history. The canvas is a working copy. Every tailor call sends `masterProfile ?? resume` as the base, never the already-tailored canvas state. Chaining tailor sessions compounds errors.
 
-**Model split:** 3B model for parsing (fast, structured JSON extraction). 70B model for tailoring (needs reasoning depth). Do not swap these.
+**Model split:** 3B model for parsing + chat (fast). 8B model (`llama-3.1-8b-instruct`) for tailoring via Workflow — faster than 70B (20-60s vs 2-5min) with acceptable quality for structured JSON tasks. The 70B was dropped because it caused retry-cascade timeouts inside Cloudflare Workflows.
 
 **JSON extraction from LLM output:** Both `/api/parse` and `/api/tailor` use a three-strategy extractor — fence match → brace slice → raw fallback — because the models sometimes add preamble text or markdown fences despite prompt instructions.
 

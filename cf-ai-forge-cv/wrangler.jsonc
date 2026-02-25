@@ -74,5 +74,19 @@
 			"binding": "BUCKET",
 			"bucket_name": "forgecv-resumes"
 		}
+	],
+	/**
+	 * Workflows Binding
+	 * The TailorWorkflow class lives in the "forgecv-workflow" worker (workflow-worker.ts).
+	 * Deploy that worker first with: npm run deploy:workflow
+	 * https://developers.cloudflare.com/workflows/
+	 */
+	"workflows": [
+		{
+			"name": "forgecv-tailor",
+			"binding": "TAILOR_WORKFLOW",
+			"class_name": "TailorWorkflow",
+			"script_name": "forgecv-workflow"
+		}
 	]
 }

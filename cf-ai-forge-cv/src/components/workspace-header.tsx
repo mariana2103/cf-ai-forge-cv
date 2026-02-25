@@ -2,7 +2,7 @@
 
 import { useRef } from "react"
 import { Eye, EyeOff, Anvil, RotateCcw, Download, Sun, Moon } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
@@ -29,15 +29,21 @@ export function WorkspaceHeader({
   const template = getTemplate(templateId)
 
   const handleExportPdf = () => {
-    const printWindow = window.open("", "_blank")
-    if (!printWindow) return
     const html = buildPrintHtml(resume, template, accentColor)
-    printWindow.document.write(html)
-    printWindow.document.close()
-    printWindow.focus()
+    // Use a hidden iframe so the print dialog is isolated to the resume HTML only —
+    // no browser address bar, no tab title header, no main-page content.
+    const iframe = document.createElement("iframe")
+    iframe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;border:none;opacity:0;pointer-events:none"
+    document.body.appendChild(iframe)
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document
+    if (!doc) { document.body.removeChild(iframe); return }
+    doc.open()
+    doc.write(html)
+    doc.close()
     setTimeout(() => {
-      printWindow.print()
-    }, 250)
+      iframe.contentWindow?.print()
+      setTimeout(() => document.body.removeChild(iframe), 1_000)
+    }, 400)
   }
 
   return (
@@ -205,8 +211,9 @@ function buildPrintHtml(
       }
 
       case "experience": {
-        if (!resume.experience.length) return ""
-        const items = resume.experience.map((e) => {
+        const expEntries = resume.experience.filter((e) => e.role?.trim() || e.company?.trim())
+        if (!expEntries.length) return ""
+        const items = expEntries.map((e) => {
           const bullets = e.bullets.filter(Boolean)
             .map((b) => `<li>${esc(b)}</li>`).join("")
           if (isRezi) {
@@ -243,8 +250,9 @@ function buildPrintHtml(
       }
 
       case "education": {
-        if (!resume.education.length) return ""
-        const items = resume.education.map((e) => {
+        const eduEntries = resume.education.filter((e) => e.institution?.trim() || e.degree?.trim())
+        if (!eduEntries.length) return ""
+        const items = eduEntries.map((e) => {
           if (isRezi) {
             return `<div style="margin-bottom:6pt">
   <div><strong>${esc(e.degree)}</strong> | ${esc(e.institution)} | <span class="dates-meta">${esc(e.dates)}</span></div>
@@ -263,8 +271,9 @@ function buildPrintHtml(
       }
 
       case "projects": {
-        if (!resume.projects.length) return ""
-        const items = resume.projects.map((p) => {
+        const projEntries = resume.projects.filter((p) => p.name?.trim() && p.name !== "Project Name")
+        if (!projEntries.length) return ""
+        const items = projEntries.map((p) => {
           const bullets = p.bullets.filter(Boolean)
             .map((b) => `<li>${esc(b)}</li>`).join("")
           return `<div style="margin-bottom:8pt">
@@ -279,8 +288,9 @@ function buildPrintHtml(
       }
 
       case "certifications": {
-        if (!resume.certifications.length) return ""
-        const items = resume.certifications.map((c) =>
+        const certEntries = resume.certifications.filter((c) => c.name?.trim() && c.name !== "Certification")
+        if (!certEntries.length) return ""
+        const items = certEntries.map((c) =>
           `<div style="margin-bottom:5pt">
   <div class="job-header">
     <h3>${esc(c.name)}${c.issuer ? ` — ${esc(c.issuer)}` : ""}</h3>
@@ -293,8 +303,9 @@ function buildPrintHtml(
       }
 
       case "awards": {
-        if (!resume.awards.length) return ""
-        const items = resume.awards.map((a) =>
+        const awardEntries = resume.awards.filter((a) => a.name?.trim() && a.name !== "Award Name")
+        if (!awardEntries.length) return ""
+        const items = awardEntries.map((a) =>
           `<div style="margin-bottom:5pt">
   <div class="job-header">
     <h3>${esc(a.name)}</h3>
@@ -307,8 +318,9 @@ function buildPrintHtml(
       }
 
       case "publications": {
-        if (!resume.publications.length) return ""
-        const items = resume.publications.map((p) =>
+        const pubEntries = resume.publications.filter((p) => p.title?.trim() && p.title !== "Publication Title")
+        if (!pubEntries.length) return ""
+        const items = pubEntries.map((p) =>
           `<div style="margin-bottom:5pt">
   <div class="job-header">
     <strong>${esc(p.title)}</strong>
@@ -332,9 +344,10 @@ function buildPrintHtml(
 <html><head><title>${esc(contact.name)} - Resume</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{max-width:8.5in;margin:0 auto;padding:0.55in 0.65in}
+  @page{margin:0;size:A4}
+  body{max-width:210mm;margin:0 auto;padding:14mm 16mm}
   .job-header{display:flex;justify-content:space-between;align-items:baseline;gap:8pt}
-  @media print{body{padding:0.5in 0.6in}}
+  @media print{body{padding:14mm 16mm;max-width:100%}}
   ${css}
 </style></head>
 <body>

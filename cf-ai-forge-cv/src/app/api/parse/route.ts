@@ -19,6 +19,12 @@ CRITICAL RULES — violating these is a failure:
 8. Generate short (6-char) random alphanumeric IDs for all entries.
 9. Copy dates exactly as written — do not normalize or reformat.
 
+SUMMARY FIELD (read carefully):
+- The summary field captures any introductory block of text at the top of the resume — regardless of what it is labelled.
+- Common headings: "Summary", "Professional Summary", "About", "About Me", "Objective", "Profile", "Overview", "Career Objective", "Personal Statement". Copy the content verbatim.
+- If the resume has such a block with NO heading, still copy it into summary.
+- Only leave summary as "" if the resume has zero introductory text at all.
+
 SKILLS FORMAT:
 - Group skills into focused, granular categories that reflect the source text.
 - Prefer specific labels ("Databases", "Cloud & DevOps", "Testing") over large catch-alls ("Tools").
@@ -42,6 +48,25 @@ Return ONLY this JSON — no markdown, no explanation:
 
 sectionOrder valid values: "summary" | "experience" | "skills" | "education" | "projects" | "certifications" | "awards" | "publications"
 contact.title: the professional headline or title as it appears in the resume header only — leave empty if not stated there.`;
+
+/** Close any unclosed brackets/braces so truncated JSON can parse. */
+function repairJson(str: string): string {
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  for (const ch of str) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  let result = str;
+  if (inString) result += '"';
+  return result + stack.reverse().join("");
+}
 
 export async function POST(request: NextRequest) {
   const { env } = getCloudflareContext();
@@ -81,8 +106,11 @@ export async function POST(request: NextRequest) {
 
   let resume: ResumeData;
   try {
+    // Try as-is first; if truncated, repair unclosed brackets before parsing
+    let parseTarget = jsonStr;
+    try { JSON.parse(jsonStr); } catch { parseTarget = repairJson(jsonStr); }
     // migrateResumeData handles missing fields AND migrates old flat skills string[] → SkillCategory[]
-    resume = migrateResumeData(JSON.parse(jsonStr));
+    resume = migrateResumeData(JSON.parse(parseTarget));
   } catch {
     return NextResponse.json({ error: "AI returned malformed JSON", raw }, { status: 500 });
   }

@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  /**
+   * Standalone Cloudflare Worker that hosts the TailorWorkflow class.
+   * Deploy with: npm run deploy:workflow
+   *
+   * The main Next.js worker (wrangler.jsonc) binds to this worker's
+   * workflow via the TAILOR_WORKFLOW binding + script_name reference.
+   */
+  "name": "forgecv-workflow",
+  "main": "workflow-worker.ts",
+  "compatibility_date": "2025-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": {
+    "binding": "AI"
+  },
+  "workflows": [
+    {
+      "name": "forgecv-tailor",
+      "binding": "TAILOR_WORKFLOW",
+      "class_name": "TailorWorkflow"
+    }
+  ]
+}
