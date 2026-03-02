@@ -2,6 +2,38 @@
 
 > Parse, tailor, and export a job-specific resume in under 60 seconds. All entirely on the Cloudflare Global Network.
 
+**Live demo:** [cf-ai-forge-cv.mariana-almeida.workers.dev](https://cf-ai-forge-cv.mariana-almeida.workers.dev)
+
+---
+
+## Try it locally
+
+```bash
+git clone https://github.com/mariana2103/cf-ai-forge-cv
+cd cf-ai-forge-cv
+npm install
+npm run dev          # local Next.js dev server (no Workers AI — use deployed link for AI features)
+```
+
+To run the full Cloudflare stack locally (Workers AI, R2, D1):
+
+```bash
+npm run preview      # builds with opennextjs-cloudflare and runs wrangler dev
+```
+
+To deploy your own instance:
+
+```bash
+# 1. Create resources
+npx wrangler d1 create forgecv-db
+npx wrangler r2 bucket create forgecv-resumes
+
+# 2. Deploy the workflow worker first, then the main app
+npm run deploy
+```
+
+> Workers AI and R2 require a Cloudflare account with those products enabled. D1 activates automatically.
+
 ---
 
 ## The Problem
@@ -25,7 +57,7 @@ Drop a PDF or paste raw text. The browser extracts the content with `pdfjs-dist`
 The parsed resume renders immediately as an editable canvas. Click any field to edit inline. Add, remove, or reorder sections. The right panel is always the source of truth, the JSON follows your edits in real time.
 
 ### 3. AI Tailor
-Paste a Job Description and hit **Tailor for JD**. The Worker sends your master career history (not the current canvas state) plus the JD to **Llama 3.3-70B**. The agent:
+Paste a Job Description and hit **Tailor for JD**. A Cloudflare Workflow runs **Llama 3.2-3B** against your master career history (not the current canvas state) plus the JD. The agent:
 - Selects the most relevant experience entries and projects
 - Rewrites every bullet using the JD's exact domain vocabulary and the Google X-Y-Z impact formula
 - Reorders sections and skills for maximum ATS impact
@@ -44,10 +76,10 @@ Click **Export PDF** to generate a pixel-perfect PDF from the current canvas sta
 |---|---|---|
 | Framework | Next.js 16 via `@opennextjs/cloudflare` | App Router, edge runtime |
 | Runtime | Cloudflare Workers (V8 Isolates) | 0ms cold starts |
-| Database | Cloudflare D1 (SQLite at the edge) | Sessions + reasoning logs |
+| Database | Cloudflare D1 (SQLite at the edge) | Bound, provisioned (version history pending) |
 | Storage | Cloudflare R2 | Source PDF storage |
 | AI — Parsing | `@cf/meta/llama-3.2-3b-instruct` | Fast structured extraction |
-| AI — Tailoring | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Deep reasoning, CoT rewrites |
+| AI — Tailoring | `@cf/meta/llama-3.2-3b-instruct` via Workflow | Durable async step, retryable |
 | UI | Tailwind CSS v4 + Shadcn UI | Zinc/slate dark + light theme |
 | PDF Extraction | `pdfjs-dist` (browser-side) | WASM runs in browser, not Worker |
 
@@ -82,7 +114,7 @@ Click **Export PDF** to generate a pixel-perfect PDF from the current canvas sta
 - [x] Dual-pane workspace: left command panel + right live canvas
 
 ### Phase 3 — AI Logic 
-- [x] `POST /api/tailor` — gap analysis + chain-of-thought rewrites via Llama 3.3-70B
+- [x] `POST /api/tailor` — gap analysis + rewrites via Cloudflare Workflow + Llama 3.2-3B
 - [x] Reasoning Agent: every change returns a `{ section, change, why }` log
 - [x] Highlights system: changed fields turn amber on the canvas
 
