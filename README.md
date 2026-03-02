@@ -105,14 +105,12 @@ Click **Export PDF** to generate a pixel-perfect PDF from the current canvas sta
 
 ---
 
-## Engineering Log
+## Engineering log
 
-The real build — 21 documented technical hurdles covering WASM crashes in Workers, LLM prompt failures, schema migrations, TypeScript edge cases, and model output parsing bugs.
+`docs/ENGINEERING_LOG.md` documents 21 real technical hurdles from the build — WASM crashes in Workers, Workflow retry cascades, LLM preamble text breaking JSON parsing, schema migrations, and more.
 
-**[Read the full Engineering Log →](docs/ENGINEERING_LOG.md)**
+Selected entries:
 
-Highlights:
-- **Hurdle #4** — Why PDF parsing had to move from the Worker to the browser (WASM bundling)
-- **Hurdle #9** — Silent `npm install` failure caused by global/local binary version collision
-- **Hurdle #18** — How tailoring sessions were compounding instead of starting fresh from the master profile
-- **Hurdle #21** — LLM preamble text breaking `JSON.parse()` and the three-strategy fix
+- **Hurdle #4** — Why PDF parsing moved from the Worker to the browser
+- **Hurdle #18** — How tailoring sessions were compounding instead of resetting to master
+- **Hurdle #21** — Three-strategy JSON extractor to survive LLM output format failures
